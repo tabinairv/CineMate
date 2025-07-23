@@ -1,7 +1,13 @@
+console.log('Starting WebSocket server...');
 const WebSocket = require('ws');
-const wss = new WebSocket.Server({ port: 8080 });
+const wss = new WebSocket.Server({ port: 8083 }, () => {
+    console.log('Server started on ws://localhost:8083');
+});
 const rooms = {};
 
+wss.on('error', (error) => {
+    console.error('Server error:', error);
+});
 wss.on('connection', ws => {
     let userRoom, userName;
     ws.on('message', message => {

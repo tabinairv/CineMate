@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "server.js": {
+      "runtime": "nodejs20.x"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/ws",
+      "destination": "/server.js"
+    }
+  ]
+}

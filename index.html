@@ -45,7 +45,7 @@
         let callType = null; 
 
         function connectWebSocket(roomCode) {
-            ws = new WebSocket('ws://localhost:8080'); // Replace with your WebSocket server URL
+            ws = new WebSocket('wss://https://cine-mate-theta.vercel.app/ws');
 
             ws.onopen = () => {
                 ws.send(JSON.stringify({ type: 'join', room: roomCode, username }));
