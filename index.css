@@ -1,0 +1,199 @@
+/* Reset and base styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'system-ui', sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Body with blurred background */
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh; /* full viewport height */
+    margin: 0;
+}
+body::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image: url('https://i.pinimg.com/1200x/fa/d5/aa/fad5aa2e7f750e518b08f90280ff070f.jpg'); /* <-- replace with your image path */
+  background-size: cover;
+  background-position: center;
+  filter: blur(8px) brightness(0.5);
+  z-index: -1; /* Send it behind everything */
+}
+/* Layout */
+.container {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+/* Home page styles */
+.home {
+    text-align: center;
+    padding: 50px 20px;
+    background: rgba(55, 8, 8);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+    margin: 50px;    
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 50%;
+}
+
+.home h1 {
+    font-size: 3em;
+    font-weight: 1000;
+    margin-bottom: 20px;    
+    color: rgba(231, 192, 188);
+}
+.home input[type="text"] {
+    padding: 12px;
+    width: 100%;    
+    margin: 10px 0;
+    border: none;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.2);
+    font-size: 1em;
+    color: white;
+}
+
+.home input[type="text"]::placeholder {
+    color: white;
+}
+.home label {
+  color: white;
+}
+/* Buttons */
+.home button, .room button {
+    padding: 12px 24px;
+    background: #D9CBC2;
+    color: rgba(53, 64, 36);
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: 500;
+    transition: background 0.2s;
+    margin: 10px;
+}
+
+.home button:hover, .room button:hover {
+    background: rgba(224, 181, 143);
+}
+
+/* Room layout */
+.room {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin: 20px;
+}
+
+.video-container {
+    flex: 3;
+    min-width: 300px;
+}
+
+.video-container iframe, .video-container video {
+    width: 100%;
+    height: 70vh;
+    max-height: 720px;
+    border-radius: 20px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+body.dark-mode .video-container iframe, body.dark-mode .video-container video {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.video-container.fullscreen iframe, .video-container.fullscreen video {
+    height: 100vh;
+    max-height: none;
+}
+
+.users-video-container {
+    flex: 1;
+    min-width: 250px;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 15px;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+}
+
+body.dark-mode .users-video-container {
+    background: rgba(42, 42, 42, 0.1);
+}
+
+.user-video {
+    width: 100%;
+    height: 150px;
+    border-radius: 12px;
+    margin-bottom: 10px;
+    background-color: #000;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+body.dark-mode .user-video {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.user-video-label {
+    font-size: 0.9em;
+    font-weight: 500;
+    margin-bottom: 5px;
+    color: white;
+}
+
+/* Controls bar */
+.controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 15px;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+}
+
+.controls p{
+  color: white;
+}
+
+/* Voice/video call indicator */
+.call-status {
+    font-size: 0.9em;
+    font-weight: 500;
+    color: #34c759;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .room {
+        flex-direction: column;
+        margin: 10px;
+    }
+
+    .video-container iframe, .video-container video {
+        height: 50vh;
+    }
+
+    .users-video-container {
+        min-width: 100%;
+    }
+
+    .home {
+        margin: 10px;
+        padding: 30px 10px;
+    }
+}

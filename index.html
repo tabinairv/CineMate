@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SyncWatch - Watch Together</title>
+    <link rel="stylesheet" href="index.css">   
+</head>
+<body>
+    <div class="home" id="homePage">
+        <h1>CINEMATE</h1>
+        <input type="text" id="videoUrl" placeholder="Enter video URL (YouTube, Vimeo, or MP4)">
+        <input type="text" id="username" placeholder="Enter your name">
+        <input type="text" id="roomCode" placeholder="Enter room code to join">
+        <label><input type="checkbox" id="isPrivate"> Private room</label>
+        <button onclick="createRoom()">Create Room</button>
+        <button onclick="joinRoom()">Join Room</button>
+    </div>
+
+    <div class="room" id="roomPage" style="display: none;">
+        <div class="video-container" id="videoContainer">
+            <!-- Main video player will be injected here -->
+        </div>
+        <div class="users-video-container" id="usersVideoContainer">
+            <!-- User video feeds will be injected here -->
+        </div>
+        <div class="controls">
+            <button onclick="toggleFullscreen()">Fullscreen</button>
+            <button onclick="toggleVoiceCall()" id="voiceCallBtn">Start Voice Call</button>
+            <button onclick="toggleVideoCall()" id="videoCallBtn">Start Video Call</button>
+            <button onclick="endRoom()" id="endRoomBtn" style="display: none;">End Room</button>
+            <span class="call-status" id="callStatus">Call: Off</span>
+            <p>Room Code: <span id="roomCodeDisplay"></span></p>
+        </div>
+    </div>
+
+    <script>
+        let ws;
+        let isHost = false;
+        let videoPlayer = null;
+        let currentRoom = null;
+        let username = '';
+        let peerConnections = {};
+        let localStream = null;
+        let callType = null; 
+
+        function connectWebSocket(roomCode) {
+            ws = new WebSocket('ws://localhost:8080'); // Replace with your WebSocket server URL
+
+            ws.onopen = () => {
+                ws.send(JSON.stringify({ type: 'join', room: roomCode, username }));
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                switch (data.type) {
+                    case 'sync':
+                        if (!isHost) {
+                            if (data.state === 'play') {
+                                videoPlayer.play();
+                            } else if (data.state === 'pause') {
+                                videoPlayer.pause();
+                            }
+                            videoPlayer.currentTime = data.time;
+                        }
+                        break;
+                    case 'roomCreated':
+                        currentRoom = data.room;
+                        document.getElementById('roomCodeDisplay').textContent = data.room;
+                        break;
+                    case 'endRoom':
+                        alert('Room has been closed by the host');
+                        window.location.reload();
+                        break;
+                    case 'webrtc-offer':
+                        handleWebRTCOffer(data.offer, data.from, data.callType);
+                        break;
+                    case 'webrtc-answer':
+                        handleWebRTCAnswer(data.answer, data.from);
+                        break;
+                    case 'webrtc-ice':
+                        handleWebRTCIceCandidate(data.candidate, data.from);
+                        break;
+                    case 'userJoined':
+                        initiateCall(data.username, callType);
+                        break;
+                }
+            };
+        }
+
+        // Create a new room
+        function createRoom() {
+            const videoUrl = document.getElementById('videoUrl').value;
+            username = document.getElementById('username').value || 'Anonymous';
+            const isPrivate = document.getElementById('isPrivate').checked;
+
+            if (!videoUrl) {
+                alert('Please enter a video URL');
+                return;
+            }
+
+            isHost = true;
+            const roomCode = generateRoomCode();
+            connectWebSocket(roomCode);
+            loadVideo(videoUrl);
+            showRoomPage(roomCode);
+        }
+
+        // Join an existing room
+        function joinRoom() {
+            const roomCode = document.getElementById('roomCode').value;
+            username = document.getElementById('username').value || 'Anonymous';
+            const videoUrl = document.getElementById('videoUrl').value;
+
+            if (!roomCode) {
+                alert('Please enter a room code');
+                return;
+            }
+
+            connectWebSocket(roomCode);
+            if (videoUrl) loadVideo(videoUrl);
+            showRoomPage(roomCode);
+        }
+
+        // Generate a random room code
+        function generateRoomCode() {
+            return Math.random().toString(36).substring(2, 8).toUpperCase();
+        }
+
+        // Load main video (YouTube, Vimeo, or MP4)
+        function loadVideo(url) {
+            const videoContainer = document.getElementById('videoContainer');
+            videoContainer.innerHTML = '';
+
+            if (url.includes('youtube.com') || url.includes('youtu.be')) {
+                const videoId = url.split('v=')[1]?.split('&')[0] || url.split('/').pop();
+                videoPlayer = document.createElement('iframe');
+                videoPlayer.src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1`;
+                videoPlayer.onload = () => {
+                    setupYouTubePlayer();
+                };
+            } else if (url.includes('vimeo.com')) {
+                const videoId = url.split('/').pop();
+                videoPlayer = document.createElement('iframe');
+                videoPlayer.src = `https://player.vimeo.com/video/${videoId}`;
+            } else {
+                videoPlayer = document.createElement('video');
+                videoPlayer.controls = isHost;
+                videoPlayer.src = url;
+                videoPlayer.addEventListener('play', () => syncVideo('play'));
+                videoPlayer.addEventListener('pause', () => syncVideo('pause'));
+                videoPlayer.addEventListener('seeked', () => syncVideo('seek'));
+            }
+
+            videoContainer.appendChild(videoPlayer);
+        }
+
+        // Sync video state
+        function syncVideo(state) {
+            if (!isHost) return;
+            ws.send(JSON.stringify({
+                type: 'sync',
+                room: currentRoom,
+                state,
+                time: videoPlayer.currentTime
+            }));
+        }
+
+        // Fullscreen toggle
+        function toggleFullscreen() {
+            const videoContainer = document.getElementById('videoContainer');
+            if (!document.fullscreenElement) {
+                videoContainer.requestFullscreen();
+                videoContainer.classList.add('fullscreen');
+            } else {
+                document.exitFullscreen();
+                videoContainer.classList.remove('fullscreen');
+            }
+        }
+
+        // End room (host only)
+        function endRoom() {
+            if (!isHost) return;
+            ws.send(JSON.stringify({
+                type: 'endRoom',
+                room: currentRoom
+            }));
+            window.location.reload();
+        }
+
+        // Voice call
+        async function toggleVoiceCall() {
+            if (callType === 'voice') {
+                stopCall();
+                document.getElementById('voiceCallBtn').textContent = 'Start Voice Call';
+                document.getElementById('callStatus').textContent = 'Call: Off';
+            } else {
+                if (callType === 'video') stopCall();
+                await startCall('voice');
+                document.getElementById('voiceCallBtn').textContent = 'Stop Voice Call';
+                document.getElementById('videoCallBtn').textContent = 'Start Video Call';
+                document.getElementById('callStatus').textContent = 'Call: Voice';
+            }
+        }
+
+        // Video call
+        async function toggleVideoCall() {
+            if (callType === 'video') {
+                stopCall();
+                document.getElementById('videoCallBtn').textContent = 'Start Video Call';
+                document.getElementById('callStatus').textContent = 'Call: Off';
+            } else {
+                if (callType === 'voice') stopCall();
+                await startCall('video');
+                document.getElementById('voiceCallBtn').textContent = 'Start Voice Call';
+                document.getElementById('videoCallBtn').textContent = 'Stop Video Call';
+                document.getElementById('callStatus').textContent = 'Call: Video';
+            }
+        }
+
+        async function startCall(type) {
+            try {
+                callType = type;
+                const constraints = type === 'video' ? { audio: true, video: true } : { audio: true, video: false };
+                localStream = await navigator.mediaDevices.getUserMedia(constraints);
+                if (type === 'video') addUserVideo(username, localStream, true);
+
+                // Notify others to initiate call
+                ws.send(JSON.stringify({
+                    type: 'userJoined',
+                    room: currentRoom,
+                    username
+                }));
+            } catch (error) {
+                console.error('Call error:', error);
+                alert(`Failed to start ${type} call`);
+            }
+        }
+
+        function stopCall() {
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
+            }
+            Object.values(peerConnections).forEach(pc => pc.close());
+            peerConnections = {};
+            callType = null;
+            const usersVideoContainer = document.getElementById('usersVideoContainer');
+            usersVideoContainer.innerHTML = '';
+        }
+
+        async function initiateCall(remoteUsername, type) {
+            if (remoteUsername === username || !type) return;
+
+            const pc = new RTCPeerConnection({
+                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+            });
+            peerConnections[remoteUsername] = pc;
+
+            pc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    ws.send(JSON.stringify({
+                        type: 'webrtc-ice',
+                        room: currentRoom,
+                        candidate: event.candidate,
+                        from: username,
+                        to: remoteUsername
+                    }));
+                }
+            };
+
+            pc.ontrack = (event) => {
+                if (type === 'video') {
+                    addUserVideo(remoteUsername, event.streams[0]);
+                } else {
+                    const audio = new Audio();
+                    audio.srcObject = event.streams[0];
+                    audio.autoplay = true;
+                }
+            };
+
+            if (localStream) {
+                localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+            }
+
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            ws.send(JSON.stringify({
+                type: 'webrtc-offer',
+                room: currentRoom,
+                offer,
+                from: username,
+                to: remoteUsername,
+                callType: type
+            }));
+        }
+
+        async function handleWebRTCOffer(offer, from, callType) {
+            if (!peerConnections[from]) {
+                const pc = new RTCPeerConnection({
+                    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+                });
+                peerConnections[from] = pc;
+
+                pc.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        ws.send(JSON.stringify({
+                            type: 'webrtc-ice',
+                            room: currentRoom,
+                            candidate: event.candidate,
+                            from: username,
+                            to: from
+                        }));
+                    }
+                };
+
+                pc.ontrack = (event) => {
+                    if (callType === 'video') {
+                        addUserVideo(from, event.streams[0]);
+                    } else {
+                        const audio = new Audio();
+                        audio.srcObject = event.streams[0];
+                        audio.autoplay = true;
+                    }
+                };
+
+                if (localStream) {
+                    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+                }
+
+                await pc.setRemoteDescription(new RTCSessionDescription(offer));
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                ws.send(JSON.stringify({
+                    type: 'webrtc-answer',
+                    room: currentRoom,
+                    answer,
+                    from: username,
+                    to: from
+                }));
+            }
+        }
+
+        async function handleWebRTCAnswer(answer, from) {
+            if (peerConnections[from]) {
+                await peerConnections[from].setRemoteDescription(new RTCSessionDescription(answer));
+            }
+        }
+
+        async function handleWebRTCIceCandidate(candidate, from) {
+            if (peerConnections[from]) {
+                await peerConnections[from].addIceCandidate(new RTCIceCandidate(candidate));
+            }
+        }
+
+        function addUserVideo(user, stream, isLocal = false) {
+            const usersVideoContainer = document.getElementById('usersVideoContainer');
+            const videoWrapper = document.createElement('div');
+            videoWrapper.id = `video-${user}`;
+            videoWrapper.innerHTML = `<div class="user-video-label">${user}</div>`;
+            const video = document.createElement('video');
+            video.className = 'user-video';
+            video.autoplay = true;
+            video.muted = isLocal; // Mute local video to avoid feedback
+            video.srcObject = stream;
+            videoWrapper.appendChild(video);
+            usersVideoContainer.appendChild(videoWrapper);
+        }
+       
+
+        // Show room page
+        function showRoomPage(roomCode) {
+            document.getElementById('homePage').style.display = 'none';
+            document.getElementById('roomPage').style.display = 'flex';
+            document.getElementById('roomCodeDisplay').textContent = roomCode;
+            if (isHost) {
+                document.getElementById('endRoomBtn').style.display = 'inline-block';
+            } else {
+                document.getElementById('videoCallBtn').disabled = false;
+                document.getElementById('voiceCallBtn').disabled = false;
+            }
+        }
+
+        // YouTube API setup (simplified)
+        function setupYouTubePlayer() {
+            // Requires YouTube IFrame Player API script for full sync
+        }
+    </script>
+</body>
+</html>
