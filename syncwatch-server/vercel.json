@@ -1,13 +1,19 @@
 {
-  "functions": {
-    "server.js": {
-      "runtime": "nodejs20.x"
-    }
-  },
-  "rewrites": [
+  "version": 2,
+  "builds": [
     {
-      "source": "/ws",
-      "destination": "/server.js"
+      "src": "api/server.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/ws",
+      "dest": "/api/server.js",
+      "headers": {
+        "Upgrade": "websocket",
+        "Connection": "Upgrade"
+      }
     }
   ]
 }
