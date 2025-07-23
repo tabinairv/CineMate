@@ -13,7 +13,8 @@
       "headers": {
         "Upgrade": "websocket",
         "Connection": "Upgrade"
-      }
+      },
+      "methods": ["GET"]
     }
   ]
 }
